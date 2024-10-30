@@ -74,6 +74,7 @@ int ttl = 0;
 int timeout = -1;
 int linger = MAXWAIT;
 int (*ping_type) (char *hostname) = ping_echo;
+char *out_interface;
 
 int (*decode_type (const char *arg)) (char *hostname);
 static int decode_ip_timestamp (char *arg);
@@ -126,6 +127,7 @@ static struct argp_option argp_options[] = {
   {"verbose", 'v', NULL, 0, "verbose output", GRP + 1},
   {"timeout", 'w', "N", 0, "stop after N seconds", GRP + 1},
   {"linger", 'W', "N", 0, "number of seconds to wait for response", GRP + 1},
+  {"interface", 'I', "INTERFACE", 0, "out interface of the packet", GRP + 1},
 #undef GRP
 #define GRP 20
   {NULL, 0, NULL, 0, "Options valid for --echo requests:", GRP},
@@ -168,6 +170,10 @@ parse_opt (int key, char *arg, struct argp_state *state)
       interval = v * PING_PRECISION;
       if (!is_root && interval < PING_MIN_USER_INTERVAL)
 	error (EXIT_FAILURE, 0, "option value too small: %s", arg);
+      break;
+
+    case 'I':
+      out_interface = arg;
       break;
 
     case 'r':
@@ -290,7 +296,12 @@ main (int argc, char **argv)
     exit (EXIT_FAILURE);
 
   ping_set_sockopt (ping, SO_BROADCAST, (char *) &one, sizeof (one));
-
+  if(out_interface) {
+    int rc = setsockopt(ping->ping_fd, SOL_SOCKET, SO_BINDTODEVICE, out_interface, strlen(out_interface) + 1);
+    if(rc == -1) {
+      fprintf(stderr, "Can't bind interface: %s.\n", out_interface);
+    }
+  }
   /* Reset root privileges */
   if (setuid (getuid ()) != 0)
     error (EXIT_FAILURE, errno, "setuid");
